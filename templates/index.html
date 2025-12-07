@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fiery Animal Detector</title>
+    <style>
+        :root {
+            --primary: #ff4500;
+            --secondary: #ff8c00;
+            --dark: #1a0f00;
+            --light: #fff5e6;
+            --glass: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #2b0a00, #802000, #ff4500);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--light);
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .container {
+            background: var(--glass);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 2.5rem;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Decorative "Fiery" Circle */
+        .container::before {
+            content: '';
+            position: absolute;
+            top: -50px;
+            right: -50px;
+            width: 150px;
+            height: 150px;
+            background: var(--primary);
+            filter: blur(60px);
+            border-radius: 50%;
+            z-index: -1;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: -webkit-linear-gradient(#fff, #ffcc00);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        p.subtitle {
+            color: #ffccaa;
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+        }
+
+        .upload-area {
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 20px;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+
+        .upload-area:hover {
+            border-color: var(--secondary);
+            background: rgba(255, 69, 0, 0.1);
+        }
+
+        #preview-img {
+            max-width: 100%;
+            max-height: 200px;
+            border-radius: 8px;
+            display: none;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        select, button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: none;
+            margin-bottom: 1rem;
+            font-size: 1rem;
+            outline: none;
+        }
+
+        select {
+            background: rgba(0, 0, 0, 0.4);
+            color: white;
+            border: 1px solid #ff4500;
+        }
+
+        button {
+            background: linear-gradient(45deg, #ff4500, #ff8c00);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 69, 0, 0.4);
+        }
+
+        .result-box {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            display: none; /* Hidden by default */
+            border-left: 5px solid var(--primary);
+        }
+
+        .animal-name {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--secondary);
+        }
+
+        .confidence {
+            color: #ccc;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+
+        /* Loading Spinner */
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+            display: none;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>WildLens</h1>
+        <p class="subtitle">Identify nature's beauty with AI</p>
+
+        <form id="predictForm">
+            <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+                <input type="file" id="fileInput" name="file" accept="image/*" hidden onchange="previewFile()">
+                <div id="upload-text">
+                    <span>🦁 Click to Upload Image</span>
+                </div>
+                <img id="preview-img" src="" alt="Preview">
+            </div>
+
+            <select name="model_type" id="modelSelect">
+                <option value="forest">🌲 Random Forest</option>
+                <option value="knn">🔗 KNN</option>
+                <option value="logistic">📊 Logistic Regression</option>
+                <option value="svm">🧠 SVM</option>
+            </select>
+
+            <button type="submit">Identify Animal</button>
+        </form>
+
+        <div class="loader" id="loader"></div>
+
+        <div class="result-box" id="resultBox">
+            <div class="animal-name" id="animalName">Result</div>
+            <div class="confidence" id="confidenceScore">Confidence: --</div>
+        </div>
+    </div>
+
+    <script>
+        // Preview the uploaded image
+        function previewFile() {
+            const preview = document.getElementById('preview-img');
+            const file = document.getElementById('fileInput').files[0];
+            const reader = new FileReader();
+            const text = document.getElementById('upload-text');
+
+            reader.addEventListener("load", function () {
+                preview.src = reader.result;
+                preview.style.display = "block";
+                text.style.display = "none";
+            }, false);
+
+            if (file) {
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Handle Form Submission
+        const form = document.getElementById('predictForm');
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const fileInput = document.getElementById('fileInput');
+            if(fileInput.files.length === 0) {
+                alert("Please upload an animal picture first!");
+                return;
+            }
+
+            // Show Loader
+            document.getElementById('loader').style.display = 'block';
+            document.getElementById('resultBox').style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('model_type', document.getElementById('modelSelect').value);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+
+                // Hide Loader
+                document.getElementById('loader').style.display = 'none';
+                
+                if (data.error) {
+                    alert("Error: " + data.error);
+                } else {
+                    document.getElementById('resultBox').style.display = 'block';
+                    document.getElementById('animalName').innerText = "It's a " + data.animal + "!";
+                    document.getElementById('confidenceScore').innerText = "Confidence: " + data.confidence;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('loader').style.display = 'none';
+                alert("Something went wrong with the server.");
+            }
+        });
+    </script>
+</body>
+</html>
